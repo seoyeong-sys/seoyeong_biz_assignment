@@ -7,13 +7,22 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt
-
-plt.rcParams['font.family'] = 'NanumGothic'
-plt.rcParams['axes.unicode_minus'] = False
-
 import io
 from PIL import Image
+import platform
+
+# OS별 시스템 한글 폰트 설정 (koreanize-matplotlib 없이 작동)
+system_os = platform.system()
+if system_os == "Windows":
+    plt.rc('font', family='Malgun Gothic')
+elif system_os == "Darwin": # macOS
+    plt.rc('font', family='AppleGothic')
+else:
+    plt.rc('font', family='NanumGothic')
+
+# 마이너스 기호 깨짐 방지
+plt.rc('axes', unicode_minus=False)
+
 
 # ==========================================
 # 1. 초기 상 설정 및 디렉토리 관리
@@ -671,33 +680,13 @@ with tab_stats:
             if emotion_counts:
                 st.markdown("##### 🧸 감정 분포")
                 emo_df = pd.DataFrame(list(emotion_counts.items()), columns=["감정", "횟수"]).sort_values(by="횟수", ascending=False)
-                
-                # Matplotlib 감성 그래프 생성
-                fig, ax = plt.subplots(figsize=(6, 4))
-                fig.patch.set_facecolor(colors['cell'])
-                ax.set_facecolor(colors['cell'])
-                
-                # 바 플롯 그리기
-                bars = ax.bar(emo_df["감정"], emo_df["횟수"], color=colors['accent'], edgecolor=colors['border'], width=0.5)
-                
-                # 그리드 및 테두리 설정
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
-                ax.spines['left'].set_color(colors['text'])
-                ax.spines['bottom'].set_color(colors['text'])
-                ax.tick_params(colors=colors['text'])
-                ax.yaxis.get_major_locator().set_params(integer=True) # 정수 눈금 표시
-                
-                # 바 위에 값 텍스트 표시
-                for bar in bars:
-                    height = bar.get_height()
-                    ax.annotate(f'{int(height)}',
-                                xy=(bar.get_x() + bar.get_width() / 2, height),
-                                xytext=(0, 3),  # 3포인트 위로
-                                textcoords="offset points",
-                                ha='center', va='bottom', color=colors['text'], fontweight='bold')
-                
-                st.pyplot(fig)
+                st.bar_chart(
+                    emo_df,
+                    x="감정",
+                    y="횟수",
+                    color=colors['accent'],
+                    use_container_width=True
+                )
             else:
                 st.info("아직 분석할 감정 통계 데이터가 부족합니다.")
                 
@@ -705,30 +694,13 @@ with tab_stats:
             if weather_counts:
                 st.markdown("##### ☀️ 날씨 분포")
                 wea_df = pd.DataFrame(list(weather_counts.items()), columns=["날씨", "횟수"]).sort_values(by="횟수", ascending=False)
-                
-                # Matplotlib 감성 그래프 생성
-                fig, ax = plt.subplots(figsize=(6, 4))
-                fig.patch.set_facecolor(colors['cell'])
-                ax.set_facecolor(colors['cell'])
-                
-                bars = ax.bar(wea_df["날씨"], wea_df["횟수"], color=colors['header'], edgecolor=colors['border'], width=0.5)
-                
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
-                ax.spines['left'].set_color(colors['text'])
-                ax.spines['bottom'].set_color(colors['text'])
-                ax.tick_params(colors=colors['text'])
-                ax.yaxis.get_major_locator().set_params(integer=True)
-                
-                for bar in bars:
-                    height = bar.get_height()
-                    ax.annotate(f'{int(height)}',
-                                xy=(bar.get_x() + bar.get_width() / 2, height),
-                                xytext=(0, 3),
-                                textcoords="offset points",
-                                ha='center', va='bottom', color=colors['text'], fontweight='bold')
-                
-                st.pyplot(fig)
+                st.bar_chart(
+                    wea_df,
+                    x="날씨",
+                    y="횟수",
+                    color=colors['header'],
+                    use_container_width=True
+                )
             else:
                 st.info("아직 분석할 날씨 통계 데이터가 부족합니다.")
 
