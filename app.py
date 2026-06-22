@@ -7,7 +7,11 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import koreanize_matplotlib  # 한글 폰트 깨짐 방지
+import matplotlib.pyplot as plt
+
+plt.rcParams['font.family'] = 'NanumGothic'
+plt.rcParams['axes.unicode_minus'] = False
+
 import io
 from PIL import Image
 
