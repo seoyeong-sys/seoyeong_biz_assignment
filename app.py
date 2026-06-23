@@ -23,6 +23,73 @@ else:
 # 마이너스 기호 깨짐 방지
 plt.rc('axes', unicode_minus=False)
 
+# 이모티콘 폰트 설정 및 혼용 출력 헬퍼 함수
+from matplotlib import font_manager
+emoji_font_prop = None
+if system_os == "Windows":
+    try:
+        emoji_font_prop = font_manager.FontProperties(fname="C:\\Windows\\Fonts\\seguiemj.ttf")
+    except Exception:
+        emoji_font_prop = font_manager.FontProperties(family="Segoe UI Emoji")
+elif system_os == "Darwin":
+    emoji_font_prop = font_manager.FontProperties(family="Apple Color Emoji")
+else:
+    emoji_font_prop = font_manager.FontProperties(family="Noto Color Emoji")
+
+def is_emoji(char):
+    code = ord(char)
+    return (
+        0x1F600 <= code <= 0x1F64F or
+        0x1F300 <= code <= 0x1F5FF or
+        0x1F680 <= code <= 0x1F6FF or
+        0x2600 <= code <= 0x26FF or
+        0x2700 <= code <= 0x27BF or
+        0xFE00 <= code <= 0xFE0F or
+        0x1F900 <= code <= 0x1F9FF or
+        0x1F1E6 <= code <= 0x1F1FF or
+        code > 0xFFFF
+    )
+
+def draw_mixed_text_mpl(ax, x, y, text, fontsize, color, emoji_font, ha='left', va='bottom', fontweight='normal', style='normal'):
+    """
+    matplotlib axes 상에서 이모티콘과 한글/영문 텍스트가 섞여 있을 때,
+    각 문자의 폰트를 구별하여 겹침 및 깨짐 없이 렌더링합니다.
+    """
+    # 14x11 인치 피규어 기준, transAxes 상에서의 가로 비율(Axes 가로 90%)
+    axes_width_inches = 14.0 * 0.90
+    
+    chars_info = []
+    total_width = 0.0
+    
+    for char in text:
+        is_em = is_emoji(char)
+        if is_em:
+            w = (fontsize / 72.0) / axes_width_inches * 1.15
+        elif ord(char) < 128:
+            w = (fontsize / 72.0) / axes_width_inches * 0.55
+        else:
+            w = (fontsize / 72.0) / axes_width_inches * 1.0
+        chars_info.append((char, is_em, w))
+        total_width += w
+        
+    start_x = x
+    if ha == 'center':
+        start_x = x - total_width / 2.0
+    elif ha == 'right':
+        start_x = x - total_width
+        
+    current_x = start_x
+    for char, is_em, w in chars_info:
+        if is_em:
+            ax.text(current_x, y, char, fontproperties=emoji_font, fontsize=fontsize, color=color,
+                    ha='left', va=va, transform=ax.transAxes, zorder=3)
+        else:
+            ax.text(current_x, y, char, fontsize=fontsize, color=color,
+                    ha='left', va=va, transform=ax.transAxes, zorder=3,
+                    weight=fontweight, style=style)
+        current_x += w
+
+
 
 # ==========================================
 # 1. 초기 상 설정 및 디렉토리 관리
@@ -727,10 +794,10 @@ def draw_calendar_image(cal_data, theme_colors):
     ax.axis('off')
     
     # 1. 제목 그리기
-    ax.text(0.5, 0.95, f"📖 {name}", fontsize=24, color=theme_colors['accent'],
-            ha='center', va='center', transform=ax.transAxes, fontweight='bold')
-    ax.text(0.5, 0.91, f"🧸 감정과 일정이 고스란히 담긴 내 디지털 다이어리", fontsize=12, color=theme_colors['text'],
-            ha='center', va='center', transform=ax.transAxes, style='italic')
+    draw_mixed_text_mpl(ax, 0.5, 0.95, f"📖 {name}", 24, theme_colors['accent'], emoji_font_prop,
+                        ha='center', va='center', fontweight='bold')
+    draw_mixed_text_mpl(ax, 0.5, 0.91, f"🧸 감정과 일정이 고스란히 담긴 내 디지털 다이어리", 12, theme_colors['text'], emoji_font_prop,
+                        ha='center', va='center', style='italic')
     
     # 2. 요일 그리드 헤더
     weekdays = ["일", "월", "화", "수", "목", "금", "토"]
@@ -758,8 +825,8 @@ def draw_calendar_image(cal_data, theme_colors):
                                    facecolor=theme_colors['header'], edgecolor='none', 
                                    transform=ax.transAxes, zorder=1))
         
-        ax.text(x, y, f"{day_name}요일", fontsize=11, color=txt_color,
-                ha='center', va='center', transform=ax.transAxes, fontweight='bold', zorder=2)
+        draw_mixed_text_mpl(ax, x, y, f"{day_name}요일", 11, txt_color, emoji_font_prop,
+                            ha='center', va='center', fontweight='bold')
         
     # 3. 날짜 칸과 내용 그리기
     for r_idx, week in enumerate(weeks):
@@ -790,35 +857,36 @@ def draw_calendar_image(cal_data, theme_colors):
                 
                 # 날짜 숫자
                 num_color = "#E57373" if c_idx == 0 else ("#64B5F6" if c_idx == 6 else theme_colors['text'])
-                ax.text(x_box + 0.01, y_box + row_height - 0.02, str(day), fontsize=13, color=num_color,
-                        ha='left', va='top', transform=ax.transAxes, fontweight='bold', zorder=2)
+                draw_mixed_text_mpl(ax, x_box + 0.01, y_box + row_height - 0.02, str(day), 13, num_color, emoji_font_prop,
+                                    ha='left', va='top', fontweight='bold')
                 
                 # 감정/날씨 이모티콘 텍스트
                 emo_e = emotion.split(" ")[0] if emotion != "선택 안 함" else ""
                 wea_e = weather.split(" ")[0] if weather != "선택 안 함" else ""
                 emojis_text = f"{emo_e} {wea_e}".strip()
                 if emojis_text:
-                    ax.text(x_box + col_width - 0.01, y_box + row_height - 0.02, emojis_text, fontsize=12,
-                            ha='right', va='top', transform=ax.transAxes, zorder=2)
+                    draw_mixed_text_mpl(ax, x_box + col_width - 0.01, y_box + row_height - 0.02, emojis_text, 12, theme_colors['text'], emoji_font_prop,
+                                        ha='right', va='top')
                 
                 # 스티커 렌더링
                 if stickers:
                     stickers_str = "".join(stickers)
-                    ax.text(x_box + 0.01, y_box + row_height - 0.045, stickers_str, fontsize=10,
-                            ha='left', va='top', transform=ax.transAxes, zorder=2)
+                    draw_mixed_text_mpl(ax, x_box + 0.01, y_box + row_height - 0.045, stickers_str, 10, theme_colors['text'], emoji_font_prop,
+                                        ha='left', va='top')
                 
                 # 메모 미리보기 (최대 3줄 표시 및 개행 문자 처리)
                 if memo:
                     memo_lines = memo.split("\n")
                     # 날짜 박스의 높이에 맞춰 2~3줄까지만 표현
-                    display_memo = "\n".join(memo_lines[:2])
+                    display_lines = memo_lines[:2]
                     if len(memo_lines) > 2:
-                        display_memo += "..."
+                        display_lines[-1] += "..."
                     
-                    # 메모 텍스트 그리기
-                    ax.text(x_box + 0.01, y_box + 0.01, display_memo, fontsize=8, color=theme_colors['text'],
-                            ha='left', va='bottom', transform=ax.transAxes, zorder=2, wrap=True,
-                            bbox=dict(boxstyle="square,pad=0.1", fc="none", ec="none"))
+                    # 각 줄마다 아래에서부터 그리기 위해 y 좌표 계산 (역순 순회로 아래에서 위로 쌓기)
+                    for i, line in enumerate(reversed(display_lines)):
+                        y_offset = y_box + 0.01 + i * 0.0125
+                        draw_mixed_text_mpl(ax, x_box + 0.01, y_offset, line, 8, theme_colors['text'], emoji_font_prop,
+                                            ha='left', va='bottom')
                     
     # 그림 데이터를 메모리 바이트 스트림으로 변환
     buf = io.BytesIO()
