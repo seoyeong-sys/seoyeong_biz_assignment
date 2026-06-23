@@ -13,18 +13,39 @@ import platform
 
 # OS별 시스템 한글 폰트 설정 (koreanize-matplotlib 없이 작동)
 system_os = platform.system()
+from matplotlib import font_manager
+
+ko_font_prop = None
 if system_os == "Windows":
     plt.rc('font', family='Malgun Gothic')
 elif system_os == "Darwin": # macOS
     plt.rc('font', family='AppleGothic')
-else:
-    plt.rc('font', family='NanumGothic')
+else: # Linux / Streamlit Cloud
+    # 나눔고딕 파일 경로 직접 탐색 (캐시 꼬임 방지)
+    nanum_paths = [
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+        "/usr/share/fonts/nanum/NanumGothic.ttf"
+    ]
+    for path in nanum_paths:
+        if os.path.exists(path):
+            ko_font_prop = font_manager.FontProperties(fname=path)
+            break
+            
+    if ko_font_prop is not None:
+        try:
+            # matplotlib에 직접 폰트 파일 등록
+            font_manager.fontManager.addfont(ko_font_prop.get_file())
+            plt.rc('font', family=ko_font_prop.get_name())
+        except Exception:
+            plt.rc('font', family='NanumGothic')
+    else:
+        plt.rc('font', family='NanumGothic')
 
 # 마이너스 기호 깨짐 방지
 plt.rc('axes', unicode_minus=False)
 
-# 이모티콘 폰트 설정 및 혼용 출력 헬퍼 함수
-from matplotlib import font_manager
+# 이모티콘 폰트 설정
 emoji_font_prop = None
 if system_os == "Windows":
     try:
@@ -33,8 +54,17 @@ if system_os == "Windows":
         emoji_font_prop = font_manager.FontProperties(family="Segoe UI Emoji")
 elif system_os == "Darwin":
     emoji_font_prop = font_manager.FontProperties(family="Apple Color Emoji")
-else:
-    emoji_font_prop = font_manager.FontProperties(family="Noto Color Emoji")
+else: # Linux / Streamlit Cloud
+    emoji_paths = [
+        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+        "/usr/share/fonts/truetype/noto-emoji/NotoColorEmoji.ttf"
+    ]
+    for path in emoji_paths:
+        if os.path.exists(path):
+            emoji_font_prop = font_manager.FontProperties(fname=path)
+            break
+    if emoji_font_prop is None:
+        emoji_font_prop = font_manager.FontProperties(family="Noto Color Emoji")
 
 def is_emoji(char):
     code = ord(char)
