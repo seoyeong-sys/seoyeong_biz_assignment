@@ -13,60 +13,16 @@ import platform
 
 # OS별 시스템 한글 폰트 설정 (koreanize-matplotlib 없이 작동)
 system_os = platform.system()
-from matplotlib import font_manager
+from PIL import Image, ImageDraw, ImageFont
 
-ko_font_prop = None
+# 마이너스 기호 깨짐 방지 (matplotlib 통계용)
+plt.rc('axes', unicode_minus=False)
 if system_os == "Windows":
     plt.rc('font', family='Malgun Gothic')
 elif system_os == "Darwin": # macOS
     plt.rc('font', family='AppleGothic')
-else: # Linux / Streamlit Cloud
-    # 나눔고딕 파일 경로 직접 탐색 (캐시 꼬임 방지)
-    nanum_paths = [
-        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
-        "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
-        "/usr/share/fonts/nanum/NanumGothic.ttf"
-    ]
-    for path in nanum_paths:
-        if os.path.exists(path):
-            ko_font_prop = font_manager.FontProperties(fname=path)
-            break
-            
-    if ko_font_prop is not None:
-        try:
-            # matplotlib에 직접 폰트 파일 등록
-            font_manager.fontManager.addfont(ko_font_prop.get_file())
-            plt.rc('font', family=ko_font_prop.get_name())
-        except Exception:
-            plt.rc('font', family='NanumGothic')
-    else:
-        plt.rc('font', family='NanumGothic')
-
-# 마이너스 기호 깨짐 방지
-plt.rc('axes', unicode_minus=False)
-
-# 이모티콘 폰트 설정
-emoji_font_prop = None
-if system_os == "Windows":
-    try:
-        emoji_font_prop = font_manager.FontProperties(fname="C:\\Windows\\Fonts\\seguiemj.ttf")
-    except Exception:
-        emoji_font_prop = font_manager.FontProperties(family="Segoe UI Emoji")
-elif system_os == "Darwin":
-    emoji_font_prop = font_manager.FontProperties(family="Apple Color Emoji")
-else: # Linux / Streamlit Cloud
-    # Noto Color Emoji 대신 크래시 없는 벡터 폰트(Symbola, DejaVu Sans) 사용
-    emoji_paths = [
-        "/usr/share/fonts/truetype/fonts-symbola/Symbola.ttf",
-        "/usr/share/fonts/truetype/symbola/Symbola.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    ]
-    for path in emoji_paths:
-        if os.path.exists(path):
-            emoji_font_prop = font_manager.FontProperties(fname=path)
-            break
-    if emoji_font_prop is None:
-        emoji_font_prop = font_manager.FontProperties(family="Symbola")
+else:
+    plt.rc('font', family='NanumGothic')
 
 def is_emoji(char):
     code = ord(char)
@@ -81,45 +37,6 @@ def is_emoji(char):
         0x1F1E6 <= code <= 0x1F1FF or
         code > 0xFFFF
     )
-
-def draw_mixed_text_mpl(ax, x, y, text, fontsize, color, emoji_font, ha='left', va='bottom', fontweight='normal', style='normal'):
-    """
-    matplotlib axes 상에서 이모티콘과 한글/영문 텍스트가 섞여 있을 때,
-    각 문자의 폰트를 구별하여 겹침 및 깨짐 없이 렌더링합니다.
-    """
-    # 14x11 인치 피규어 기준, transAxes 상에서의 가로 비율(Axes 가로 90%)
-    axes_width_inches = 14.0 * 0.90
-    
-    chars_info = []
-    total_width = 0.0
-    
-    for char in text:
-        is_em = is_emoji(char)
-        if is_em:
-            w = (fontsize / 72.0) / axes_width_inches * 1.15
-        elif ord(char) < 128:
-            w = (fontsize / 72.0) / axes_width_inches * 0.55
-        else:
-            w = (fontsize / 72.0) / axes_width_inches * 1.0
-        chars_info.append((char, is_em, w))
-        total_width += w
-        
-    start_x = x
-    if ha == 'center':
-        start_x = x - total_width / 2.0
-    elif ha == 'right':
-        start_x = x - total_width
-        
-    current_x = start_x
-    for char, is_em, w in chars_info:
-        if is_em:
-            ax.text(current_x, y, char, fontproperties=emoji_font, fontsize=fontsize, color=color,
-                    ha='left', va=va, transform=ax.transAxes, zorder=3)
-        else:
-            ax.text(current_x, y, char, fontsize=fontsize, color=color,
-                    ha='left', va=va, transform=ax.transAxes, zorder=3,
-                    weight=fontweight, style=style)
-        current_x += w
 
 
 
@@ -808,7 +725,8 @@ with tab_stats:
 # ==========================================
 def draw_calendar_image(cal_data, theme_colors):
     """
-    matplotlib을 활용해 실제 폰트 깨짐 없이 달력을 고해상도 이미지로 생성합니다.
+    matplotlib 대신 Pillow를 사용하여 크로스 플랫폼(윈도우/리눅스/클라우드)에서
+    한글과 컬러 이모티콘이 절대 깨지지 않고 안정적으로 고해상도 달력 이미지를 생성합니다.
     """
     year = cal_data.get("year")
     month = cal_data.get("month")
@@ -817,32 +735,115 @@ def draw_calendar_image(cal_data, theme_colors):
     cal_obj = calendar.Calendar(firstweekday=6)
     weeks = cal_obj.monthdayscalendar(year, month)
     
-    # matplotlib figure 및 axes 설정
-    fig, ax = plt.subplots(figsize=(14, 11), dpi=150)
-    fig.patch.set_facecolor(theme_colors['bg'])
-    ax.set_facecolor(theme_colors['cell'])
+    # 이미지 생성 (2100 x 1650 px)
+    img = Image.new("RGB", (2100, 1650), theme_colors['bg'])
+    draw = ImageDraw.Draw(img)
     
-    # 축 비활성화
-    ax.axis('off')
+    # 폰트 로드 함수 정의
+    system_os = platform.system()
     
+    def load_font(font_type, size):
+        if font_type == "ko":
+            if system_os == "Windows":
+                paths = ["C:\\Windows\\Fonts\\malgun.ttf", "C:\\Windows\\Fonts\\malgunbd.ttf"]
+            elif system_os == "Darwin":
+                paths = ["/System/Library/Fonts/Supplemental/AppleGothic.ttf", "/System/Library/Fonts/AppleSDGothicNeo.ttc"]
+            else: # Linux / Streamlit Cloud
+                paths = [
+                    "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+                    "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+                    "/usr/share/fonts/nanum/NanumGothic.ttf"
+                ]
+            for path in paths:
+                if os.path.exists(path):
+                    return ImageFont.truetype(path, size)
+            return ImageFont.load_default()
+        else: # emoji
+            if system_os == "Windows":
+                paths = ["C:\\Windows\\Fonts\\seguiemj.ttf"]
+            elif system_os == "Darwin":
+                paths = ["/System/Library/Fonts/Apple Color Emoji.ttc", "/System/Library/Fonts/Apple Color Emoji.ttf"]
+            else: # Linux / Streamlit Cloud
+                paths = [
+                    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+                    "/usr/share/fonts/truetype/noto-emoji/NotoColorEmoji.ttf"
+                ]
+            for path in paths:
+                if os.path.exists(path):
+                    try:
+                        return ImageFont.truetype(path, size)
+                    except Exception:
+                        pass
+            return ImageFont.load_default()
+            
+    # 폰트 캐시 생성
+    font_ko_title = load_font("ko", 45)
+    font_ko_subtitle = load_font("ko", 22)
+    font_ko_header = load_font("ko", 20)
+    font_ko_day = load_font("ko", 26)
+    font_ko_memo = load_font("ko", 16)
+    
+    font_emoji_title = load_font("emoji", 45)
+    font_emoji_subtitle = load_font("emoji", 22)
+    font_emoji_header = load_font("emoji", 20)
+    font_emoji_day = load_font("emoji", 26)
+    font_emoji_memo = load_font("emoji", 16)
+    
+    # 텍스트 혼용 출력 헬퍼 함수
+    def draw_mixed_text(draw_obj, x, y, text, font_ko, font_emoji, fill, ha='left', va='top'):
+        chars_info = []
+        total_width = 0.0
+        
+        for char in text:
+            is_em = is_emoji(char)
+            f = font_emoji if is_em else font_ko
+            
+            # 문자 bbox 구하기
+            bbox = draw_obj.textbbox((0, 0), char, font=f)
+            w = bbox[2] - bbox[0]
+            if w <= 0:
+                w = font_ko.size * 0.5 if char == ' ' else font_ko.size
+            chars_info.append((char, f, w))
+            total_width += w
+            
+        # 시작 x 좌표 결정
+        start_x = x
+        if ha == 'center':
+            start_x = x - total_width / 2.0
+        elif ha == 'right':
+            start_x = x - total_width
+            
+        current_x = start_x
+        for char, f, w in chars_info:
+            draw_y = y
+            if va == 'center':
+                bbox = draw_obj.textbbox((0, 0), char, font=f)
+                h = bbox[3] - bbox[1]
+                draw_y = y - h / 2.0
+            elif va == 'bottom':
+                bbox = draw_obj.textbbox((0, 0), char, font=f)
+                h = bbox[3] - bbox[1]
+                draw_y = y - h
+                
+            draw_obj.text((current_x, draw_y), char, font=f, fill=fill)
+            current_x += w
+            
     # 1. 제목 그리기
-    draw_mixed_text_mpl(ax, 0.5, 0.95, f"📖 {name}", 24, theme_colors['accent'], emoji_font_prop,
-                        ha='center', va='center', fontweight='bold')
-    draw_mixed_text_mpl(ax, 0.5, 0.91, f"🧸 감정과 일정이 고스란히 담긴 내 디지털 다이어리", 12, theme_colors['text'], emoji_font_prop,
-                        ha='center', va='center', style='italic')
+    draw_mixed_text(draw, 1050, 80, f"📖 {name}", font_ko_title, font_emoji_title, theme_colors['accent'], ha='center')
+    draw_mixed_text(draw, 1050, 150, f"🧸 감정과 일정이 고스란히 담긴 내 디지털 다이어리", font_ko_subtitle, font_emoji_subtitle, theme_colors['text'], ha='center')
     
     # 2. 요일 그리드 헤더
     weekdays = ["일", "월", "화", "수", "목", "금", "토"]
+    col_width = 1900.0 / 7.0
+    row_height = 1200.0 / len(weeks)
     
-    # 그리드 좌표 매핑 계산
-    # y축 범위는 0.1 ~ 0.85로 설정하고 x축은 0.05 ~ 0.95로 설정
-    col_width = 0.90 / 7
-    row_height = 0.73 / len(weeks)
-    
-    # 요일 헤더 그리기
     for col_idx, day_name in enumerate(weekdays):
-        x = 0.05 + col_idx * col_width + col_width / 2
-        y = 0.86
+        x_left = 100.0 + col_idx * col_width + 4.0
+        x_right = 100.0 + (col_idx + 1) * col_width - 4.0
+        x_center = (x_left + x_right) / 2.0
+        
+        # 헤더 배경 박스 그리기
+        draw.rectangle([x_left, 220, x_right, 280], fill=theme_colors['header'])
         
         # 요일 글자 색상 분기
         if col_idx == 0:
@@ -852,28 +853,19 @@ def draw_calendar_image(cal_data, theme_colors):
         else:
             txt_color = theme_colors['text']
             
-        # 헤더 배경 박스 그리기
-        ax.add_patch(plt.Rectangle((0.05 + col_idx * col_width + 0.003, 0.84), col_width - 0.006, 0.04,
-                                   facecolor=theme_colors['header'], edgecolor='none', 
-                                   transform=ax.transAxes, zorder=1))
-        
-        draw_mixed_text_mpl(ax, x, y, f"{day_name}요일", 11, txt_color, emoji_font_prop,
-                            ha='center', va='center', fontweight='bold')
+        draw_mixed_text(draw, x_center, 250, f"{day_name}요일", font_ko_header, font_emoji_header, txt_color, ha='center', va='center')
         
     # 3. 날짜 칸과 내용 그리기
     for r_idx, week in enumerate(weeks):
         for c_idx, day in enumerate(week):
-            # 셀 영역 좌하단 x, y 좌표
-            x_box = 0.05 + c_idx * col_width
-            # 행은 위에서부터 아래로 내려감 (weeks 역순 렌더링을 위해 변환)
-            y_box = 0.82 - (r_idx + 1) * row_height
+            x_left = 100.0 + c_idx * col_width + 4.0
+            x_right = 100.0 + (c_idx + 1) * col_width - 4.0
+            y_top = 300.0 + r_idx * row_height + 4.0
+            y_bottom = 300.0 + (r_idx + 1) * row_height - 4.0
             
-            # 셀 배경 사각형 그리기
             if day == 0:
                 # 빈 칸
-                ax.add_patch(plt.Rectangle((x_box + 0.003, y_box + 0.003), col_width - 0.006, row_height - 0.006,
-                                           facecolor=theme_colors['bg'], edgecolor=theme_colors['border'], linestyle='--',
-                                           transform=ax.transAxes, zorder=1))
+                draw.rectangle([x_left, y_top, x_right, y_bottom], fill=theme_colors['bg'], outline=theme_colors['border'], width=2)
             else:
                 day_str = str(day)
                 day_info = cal_data.get("days", {}).get(day_str, {})
@@ -883,47 +875,38 @@ def draw_calendar_image(cal_data, theme_colors):
                 stickers = day_info.get("stickers", [])
                 
                 # 날짜 칸 카드 박스
-                ax.add_patch(plt.Rectangle((x_box + 0.003, y_box + 0.003), col_width - 0.006, row_height - 0.006,
-                                           facecolor=theme_colors['cell'], edgecolor=theme_colors['border'], linewidth=1.5,
-                                           transform=ax.transAxes, zorder=1))
+                draw.rectangle([x_left, y_top, x_right, y_bottom], fill=theme_colors['cell'], outline=theme_colors['border'], width=2)
                 
                 # 날짜 숫자
                 num_color = "#E57373" if c_idx == 0 else ("#64B5F6" if c_idx == 6 else theme_colors['text'])
-                draw_mixed_text_mpl(ax, x_box + 0.01, y_box + row_height - 0.02, str(day), 13, num_color, emoji_font_prop,
-                                    ha='left', va='top', fontweight='bold')
+                draw_mixed_text(draw, x_left + 15, y_top + 15, str(day), font_ko_day, font_emoji_day, num_color)
                 
                 # 감정/날씨 이모티콘 텍스트
                 emo_e = emotion.split(" ")[0] if emotion != "선택 안 함" else ""
                 wea_e = weather.split(" ")[0] if weather != "선택 안 함" else ""
                 emojis_text = f"{emo_e} {wea_e}".strip()
                 if emojis_text:
-                    draw_mixed_text_mpl(ax, x_box + col_width - 0.01, y_box + row_height - 0.02, emojis_text, 12, theme_colors['text'], emoji_font_prop,
-                                        ha='right', va='top')
+                    draw_mixed_text(draw, x_right - 15, y_top + 15, emojis_text, font_ko_day, font_emoji_day, theme_colors['text'], ha='right')
                 
                 # 스티커 렌더링
                 if stickers:
                     stickers_str = "".join(stickers)
-                    draw_mixed_text_mpl(ax, x_box + 0.01, y_box + row_height - 0.045, stickers_str, 10, theme_colors['text'], emoji_font_prop,
-                                        ha='left', va='top')
+                    draw_mixed_text(draw, x_left + 15, y_top + 65, stickers_str, font_ko_header, font_emoji_header, theme_colors['text'])
                 
                 # 메모 미리보기 (최대 3줄 표시 및 개행 문자 처리)
                 if memo:
                     memo_lines = memo.split("\n")
-                    # 날짜 박스의 높이에 맞춰 2~3줄까지만 표현
                     display_lines = memo_lines[:2]
                     if len(memo_lines) > 2:
                         display_lines[-1] += "..."
-                    
-                    # 각 줄마다 아래에서부터 그리기 위해 y 좌표 계산 (역순 순회로 아래에서 위로 쌓기)
-                    for i, line in enumerate(reversed(display_lines)):
-                        y_offset = y_box + 0.01 + i * 0.0125
-                        draw_mixed_text_mpl(ax, x_box + 0.01, y_offset, line, 8, theme_colors['text'], emoji_font_prop,
-                                            ha='left', va='bottom')
-                    
+                        
+                    for i, line in enumerate(display_lines):
+                        y_offset = y_bottom - 20 - (len(display_lines) - 1 - i) * 25
+                        draw_mixed_text(draw, x_left + 15, y_offset, line, font_ko_memo, font_emoji_memo, theme_colors['text'])
+                        
     # 그림 데이터를 메모리 바이트 스트림으로 변환
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
-    plt.close(fig)
+    img.save(buf, format='PNG')
     buf.seek(0)
     return buf
 
@@ -1001,4 +984,5 @@ with tab_export:
                     st.error("올바른 다이어리 백업 파일 양식이 아닙니다.")
             except Exception as e:
                 st.error(f"파일을 읽는 도중 오류가 발생했습니다: {e}")
+
 
