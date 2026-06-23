@@ -55,16 +55,18 @@ if system_os == "Windows":
 elif system_os == "Darwin":
     emoji_font_prop = font_manager.FontProperties(family="Apple Color Emoji")
 else: # Linux / Streamlit Cloud
+    # Noto Color Emoji 대신 크래시 없는 벡터 폰트(Symbola, DejaVu Sans) 사용
     emoji_paths = [
-        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-        "/usr/share/fonts/truetype/noto-emoji/NotoColorEmoji.ttf"
+        "/usr/share/fonts/truetype/fonts-symbola/Symbola.ttf",
+        "/usr/share/fonts/truetype/symbola/Symbola.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     ]
     for path in emoji_paths:
         if os.path.exists(path):
             emoji_font_prop = font_manager.FontProperties(fname=path)
             break
     if emoji_font_prop is None:
-        emoji_font_prop = font_manager.FontProperties(family="Noto Color Emoji")
+        emoji_font_prop = font_manager.FontProperties(family="Symbola")
 
 def is_emoji(char):
     code = ord(char)
@@ -999,3 +1001,4 @@ with tab_export:
                     st.error("올바른 다이어리 백업 파일 양식이 아닙니다.")
             except Exception as e:
                 st.error(f"파일을 읽는 도중 오류가 발생했습니다: {e}")
+
