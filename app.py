@@ -43,28 +43,42 @@ import urllib.request
 FONTS_DIR = os.path.join(os.path.dirname(__file__), "fonts")
 os.makedirs(FONTS_DIR, exist_ok=True)
 
+EMOJIS_DIR = os.path.join(os.path.dirname(__file__), "emojis")
+os.makedirs(EMOJIS_DIR, exist_ok=True)
+
 GOWUN_FONT_PATH = os.path.join(FONTS_DIR, "GowunDodum-Regular.ttf")
-EMOJI_FONT_PATH = os.path.join(FONTS_DIR, "NotoColorEmoji.ttf")
+
+# 28개 데코용 핵심 이모티콘의 Twemoji 코드포인트 맵
+EMOJI_MAP = {
+    "📖": "1f4d6", "🧸": "1f9e8",
+    "😀": "1f600", "😐": "1f610", "😢": "1f622", "😡": "1f621", "😴": "1f634", "💖": "1f496", "😎": "1f60e", "🥳": "1f973", "🥺": "1f97a",
+    "☀️": "2600", "☁️": "2601", "🌧": "1f327", "⛈": "26c8", "❄️": "2744", "💨": "1f4a8", "🌫": "1f32b",
+    "⭐": "2b50", "❤️": "2764", "🎉": "1f389", "🌱": "1f331", "📚": "1f4da", "✈️": "2708", "🎂": "1f382", "🍀": "1f340", "💡": "1f4a1", "🔍": "1f50d"
+}
 
 def download_fonts_if_needed():
     """
-    최초 이미지 생성 실행 시 한글 감성 폰트 및 구글 컬러 이모티콘 폰트를 자동 다운로드합니다.
+    최초 이미지 생성 실행 시 한글 감성 폰트를 자동 다운로드합니다.
     """
-    # 1. Gowun Dodum
     if not os.path.exists(GOWUN_FONT_PATH):
         try:
             url = "https://github.com/google/fonts/raw/main/ofl/gowundodum/GowunDodum-Regular.ttf"
             urllib.request.urlretrieve(url, GOWUN_FONT_PATH)
         except Exception:
             pass
-            
-    # 2. Noto Color Emoji
-    if not os.path.exists(EMOJI_FONT_PATH):
-        try:
-            url = "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf"
-            urllib.request.urlretrieve(url, EMOJI_FONT_PATH)
-        except Exception:
-            pass
+
+def download_emojis_if_needed():
+    """
+    핵심 이모티콘 28개의 PNG 이미지 파일(Twemoji)을 다운로드하여 캐싱합니다.
+    """
+    for char, code in EMOJI_MAP.items():
+        emoji_path = os.path.join(EMOJIS_DIR, f"{code}.png")
+        if not os.path.exists(emoji_path):
+            try:
+                url = f"https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/{code}.png"
+                urllib.request.urlretrieve(url, emoji_path)
+            except Exception:
+                pass
 
 
 
@@ -770,75 +784,51 @@ def draw_calendar_image(cal_data, theme_colors):
     # 폰트 로드 함수 정의
     system_os = platform.system()
     
-    def load_font(font_type, size):
-        if font_type == "ko":
-            paths = [GOWUN_FONT_PATH]
-            if system_os == "Windows":
-                paths.extend(["C:\\Windows\\Fonts\\malgun.ttf", "C:\\Windows\\Fonts\\malgunbd.ttf"])
-            elif system_os == "Darwin":
-                paths.extend(["/System/Library/Fonts/Supplemental/AppleGothic.ttf", "/System/Library/Fonts/AppleSDGothicNeo.ttc"])
-            else: # Linux / Streamlit Cloud
-                paths.extend([
-                    "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
-                    "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
-                    "/usr/share/fonts/nanum/NanumGothic.ttf"
-                ])
-            for path in paths:
-                if os.path.exists(path):
-                    try:
-                        return ImageFont.truetype(path, size)
-                    except Exception:
-                        pass
-            return ImageFont.load_default()
-        else: # emoji
-            paths = [EMOJI_FONT_PATH]
-            if system_os == "Windows":
-                paths.extend(["C:\\Windows\\Fonts\\seguiemj.ttf"])
-            elif system_os == "Darwin":
-                paths.extend(["/System/Library/Fonts/Apple Color Emoji.ttc", "/System/Library/Fonts/Apple Color Emoji.ttf"])
-            else: # Linux / Streamlit Cloud
-                paths.extend([
-                    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-                    "/usr/share/fonts/truetype/noto-emoji/NotoColorEmoji.ttf"
-                ])
-            for path in paths:
-                if os.path.exists(path):
-                    try:
-                        return ImageFont.truetype(path, size)
-                    except Exception:
-                        pass
-            return ImageFont.load_default()
+    def load_font(size):
+        paths = [GOWUN_FONT_PATH]
+        if system_os == "Windows":
+            paths.extend(["C:\\Windows\\Fonts\\malgun.ttf", "C:\\Windows\\Fonts\\malgunbd.ttf"])
+        elif system_os == "Darwin":
+            paths.extend(["/System/Library/Fonts/Supplemental/AppleGothic.ttf", "/System/Library/Fonts/AppleSDGothicNeo.ttc"])
+        else: # Linux / Streamlit Cloud
+            paths.extend([
+                "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+                "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+                "/usr/share/fonts/nanum/NanumGothic.ttf"
+            ])
+        for path in paths:
+            if os.path.exists(path):
+                try:
+                    return ImageFont.truetype(path, size)
+                except Exception:
+                    pass
+        return ImageFont.load_default()
             
     # 폰트 캐시 생성
-    font_ko_title = load_font("ko", 45)
-    font_ko_subtitle = load_font("ko", 22)
-    font_ko_header = load_font("ko", 20)
-    font_ko_day = load_font("ko", 26)
-    font_ko_memo = load_font("ko", 16)
+    font_ko_title = load_font(45)
+    font_ko_subtitle = load_font(22)
+    font_ko_header = load_font(20)
+    font_ko_day = load_font(26)
+    font_ko_memo = load_font(16)
     
-    font_emoji_title = load_font("emoji", 45)
-    font_emoji_subtitle = load_font("emoji", 22)
-    font_emoji_header = load_font("emoji", 20)
-    font_emoji_day = load_font("emoji", 26)
-    font_emoji_memo = load_font("emoji", 16)
-    
-    # 텍스트 혼용 출력 헬퍼 함수
-    def draw_mixed_text(draw_obj, x, y, text, font_ko, font_emoji, fill, ha='left', va='top'):
+    # 텍스트 혼용 (한글 + 이모티콘 이미지 페이스트) 출력 헬퍼 함수
+    def draw_mixed_text(draw_obj, x, y, text, font_ko, fill, ha='left', va='top'):
         chars_info = []
         total_width = 0.0
         
         for char in text:
-            is_em = is_emoji(char)
-            f = font_emoji if is_em else font_ko
-            
-            # 문자 bbox 구하기
-            bbox = draw_obj.textbbox((0, 0), char, font=f)
-            w = bbox[2] - bbox[0]
-            if w <= 0:
-                w = font_ko.size * 0.5 if char == ' ' else font_ko.size
-            chars_info.append((char, f, w))
-            total_width += w
-            
+            if char in EMOJI_MAP:
+                emoji_size = int(font_ko.size * 1.1)
+                chars_info.append((char, True, emoji_size))
+                total_width += emoji_size
+            else:
+                bbox = draw_obj.textbbox((0, 0), char, font=font_ko)
+                w = bbox[2] - bbox[0]
+                if w <= 0:
+                    w = font_ko.size * 0.5 if char == ' ' else font_ko.size
+                chars_info.append((char, False, w))
+                total_width += w
+                
         # 시작 x 좌표 결정
         start_x = x
         if ha == 'center':
@@ -847,23 +837,42 @@ def draw_calendar_image(cal_data, theme_colors):
             start_x = x - total_width
             
         current_x = start_x
-        for char, f, w in chars_info:
+        for char, is_em, w in chars_info:
             draw_y = y
-            if va == 'center':
-                bbox = draw_obj.textbbox((0, 0), char, font=f)
-                h = bbox[3] - bbox[1]
-                draw_y = y - h / 2.0
-            elif va == 'bottom':
-                bbox = draw_obj.textbbox((0, 0), char, font=f)
-                h = bbox[3] - bbox[1]
-                draw_y = y - h
+            if is_em:
+                if va == 'center':
+                    draw_y = y - w / 2.0
+                elif va == 'bottom':
+                    draw_y = y - w
                 
-            draw_obj.text((current_x, draw_y), char, font=f, fill=fill)
+                # 캐시된 이모티콘 이미지 붙여넣기
+                code = EMOJI_MAP[char]
+                path = os.path.join(EMOJIS_DIR, f"{code}.png")
+                if os.path.exists(path):
+                    try:
+                        emoji_img = Image.open(path).convert("RGBA")
+                        emoji_img = emoji_img.resize((w, w), Image.Resampling.LANCZOS)
+                        img.paste(emoji_img, (int(current_x), int(draw_y)), emoji_img)
+                    except Exception:
+                        draw_obj.text((current_x, draw_y), char, font=font_ko, fill=fill)
+                else:
+                    draw_obj.text((current_x, draw_y), char, font=font_ko, fill=fill)
+            else:
+                if va == 'center':
+                    bbox = draw_obj.textbbox((0, 0), char, font=font_ko)
+                    h = bbox[3] - bbox[1]
+                    draw_y = y - h / 2.0
+                elif va == 'bottom':
+                    bbox = draw_obj.textbbox((0, 0), char, font=font_ko)
+                    h = bbox[3] - bbox[1]
+                    draw_y = y - h
+                draw_obj.text((current_x, draw_y), char, font=font_ko, fill=fill)
+                
             current_x += w
             
     # 1. 제목 그리기
-    draw_mixed_text(draw, 1050, 80, f"📖 {name}", font_ko_title, font_emoji_title, theme_colors['accent'], ha='center')
-    draw_mixed_text(draw, 1050, 150, f"🧸 감정과 일정이 고스란히 담긴 내 디지털 다이어리", font_ko_subtitle, font_emoji_subtitle, theme_colors['text'], ha='center')
+    draw_mixed_text(draw, 1050, 80, f"📖 {name}", font_ko_title, theme_colors['accent'], ha='center')
+    draw_mixed_text(draw, 1050, 150, f"🧸 감정과 일정이 고스란히 담긴 내 디지털 다이어리", font_ko_subtitle, theme_colors['text'], ha='center')
     
     # 2. 요일 그리드 헤더
     weekdays = ["일", "월", "화", "수", "목", "금", "토"]
@@ -886,7 +895,7 @@ def draw_calendar_image(cal_data, theme_colors):
         else:
             txt_color = theme_colors['text']
             
-        draw_mixed_text(draw, x_center, 250, f"{day_name}요일", font_ko_header, font_emoji_header, txt_color, ha='center', va='center')
+        draw_mixed_text(draw, x_center, 250, f"{day_name}요일", font_ko_header, txt_color, ha='center', va='center')
         
     # 3. 날짜 칸과 내용 그리기
     for r_idx, week in enumerate(weeks):
@@ -912,19 +921,19 @@ def draw_calendar_image(cal_data, theme_colors):
                 
                 # 날짜 숫자
                 num_color = "#E57373" if c_idx == 0 else ("#64B5F6" if c_idx == 6 else theme_colors['text'])
-                draw_mixed_text(draw, x_left + 15, y_top + 15, str(day), font_ko_day, font_emoji_day, num_color)
+                draw_mixed_text(draw, x_left + 15, y_top + 15, str(day), font_ko_day, num_color)
                 
                 # 감정/날씨 이모티콘 텍스트
                 emo_e = emotion.split(" ")[0] if emotion != "선택 안 함" else ""
                 wea_e = weather.split(" ")[0] if weather != "선택 안 함" else ""
                 emojis_text = f"{emo_e} {wea_e}".strip()
                 if emojis_text:
-                    draw_mixed_text(draw, x_right - 15, y_top + 15, emojis_text, font_ko_day, font_emoji_day, theme_colors['text'], ha='right')
+                    draw_mixed_text(draw, x_right - 15, y_top + 15, emojis_text, font_ko_day, theme_colors['text'], ha='right')
                 
                 # 스티커 렌더링
                 if stickers:
                     stickers_str = "".join(stickers)
-                    draw_mixed_text(draw, x_left + 15, y_top + 65, stickers_str, font_ko_header, font_emoji_header, theme_colors['text'])
+                    draw_mixed_text(draw, x_left + 15, y_top + 65, stickers_str, font_ko_header, theme_colors['text'])
                 
                 # 메모 미리보기 (최대 3줄 표시 및 개행 문자 처리)
                 if memo:
@@ -935,7 +944,7 @@ def draw_calendar_image(cal_data, theme_colors):
                         
                     for i, line in enumerate(display_lines):
                         y_offset = y_bottom - 20 - (len(display_lines) - 1 - i) * 25
-                        draw_mixed_text(draw, x_left + 15, y_offset, line, font_ko_memo, font_emoji_memo, theme_colors['text'])
+                        draw_mixed_text(draw, x_left + 15, y_offset, line, font_ko_memo, theme_colors['text'])
                         
     # 그림 데이터를 메모리 바이트 스트림으로 변환
     buf = io.BytesIO()
@@ -960,6 +969,7 @@ with tab_export:
             with st.spinner("다이어리를 예쁜 그림으로 변환하고 있어요... (최초 실행 시 폰트 다운로드로 10~20초 소요될 수 있습니다) 🧸"):
                 try:
                     download_fonts_if_needed()
+                    download_emojis_if_needed()
                     cal_img_buf = draw_calendar_image(st.session_state.calendar_data, colors)
                     
                     # 다운로드 버튼 활성화
@@ -1018,6 +1028,7 @@ with tab_export:
                     st.error("올바른 다이어리 백업 파일 양식이 아닙니다.")
             except Exception as e:
                 st.error(f"파일을 읽는 도중 오류가 발생했습니다: {e}")
+
 
 
 
