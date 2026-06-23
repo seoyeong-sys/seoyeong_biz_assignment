@@ -38,6 +38,34 @@ def is_emoji(char):
         code > 0xFFFF
     )
 
+import urllib.request
+
+FONTS_DIR = os.path.join(os.path.dirname(__file__), "fonts")
+os.makedirs(FONTS_DIR, exist_ok=True)
+
+GOWUN_FONT_PATH = os.path.join(FONTS_DIR, "GowunDodum-Regular.ttf")
+EMOJI_FONT_PATH = os.path.join(FONTS_DIR, "NotoColorEmoji.ttf")
+
+def download_fonts_if_needed():
+    """
+    최초 이미지 생성 실행 시 한글 감성 폰트 및 구글 컬러 이모티콘 폰트를 자동 다운로드합니다.
+    """
+    # 1. Gowun Dodum
+    if not os.path.exists(GOWUN_FONT_PATH):
+        try:
+            url = "https://github.com/google/fonts/raw/main/ofl/gowundodum/GowunDodum-Regular.ttf"
+            urllib.request.urlretrieve(url, GOWUN_FONT_PATH)
+        except Exception:
+            pass
+            
+    # 2. Noto Color Emoji
+    if not os.path.exists(EMOJI_FONT_PATH):
+        try:
+            url = "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf"
+            urllib.request.urlretrieve(url, EMOJI_FONT_PATH)
+        except Exception:
+            pass
+
 
 
 # ==========================================
@@ -744,30 +772,35 @@ def draw_calendar_image(cal_data, theme_colors):
     
     def load_font(font_type, size):
         if font_type == "ko":
+            paths = [GOWUN_FONT_PATH]
             if system_os == "Windows":
-                paths = ["C:\\Windows\\Fonts\\malgun.ttf", "C:\\Windows\\Fonts\\malgunbd.ttf"]
+                paths.extend(["C:\\Windows\\Fonts\\malgun.ttf", "C:\\Windows\\Fonts\\malgunbd.ttf"])
             elif system_os == "Darwin":
-                paths = ["/System/Library/Fonts/Supplemental/AppleGothic.ttf", "/System/Library/Fonts/AppleSDGothicNeo.ttc"]
+                paths.extend(["/System/Library/Fonts/Supplemental/AppleGothic.ttf", "/System/Library/Fonts/AppleSDGothicNeo.ttc"])
             else: # Linux / Streamlit Cloud
-                paths = [
+                paths.extend([
                     "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
                     "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
                     "/usr/share/fonts/nanum/NanumGothic.ttf"
-                ]
+                ])
             for path in paths:
                 if os.path.exists(path):
-                    return ImageFont.truetype(path, size)
+                    try:
+                        return ImageFont.truetype(path, size)
+                    except Exception:
+                        pass
             return ImageFont.load_default()
         else: # emoji
+            paths = [EMOJI_FONT_PATH]
             if system_os == "Windows":
-                paths = ["C:\\Windows\\Fonts\\seguiemj.ttf"]
+                paths.extend(["C:\\Windows\\Fonts\\seguiemj.ttf"])
             elif system_os == "Darwin":
-                paths = ["/System/Library/Fonts/Apple Color Emoji.ttc", "/System/Library/Fonts/Apple Color Emoji.ttf"]
+                paths.extend(["/System/Library/Fonts/Apple Color Emoji.ttc", "/System/Library/Fonts/Apple Color Emoji.ttf"])
             else: # Linux / Streamlit Cloud
-                paths = [
+                paths.extend([
                     "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
                     "/usr/share/fonts/truetype/noto-emoji/NotoColorEmoji.ttf"
-                ]
+                ])
             for path in paths:
                 if os.path.exists(path):
                     try:
@@ -924,8 +957,9 @@ with tab_export:
         generate_image_btn = st.button("🎨 고화질 이미지 생성하기", use_container_width=True)
         
         if generate_image_btn:
-            with st.spinner("다이어리를 예쁜 그림으로 변환하고 있어요... 잠시만 기다려주세요! 🧸"):
+            with st.spinner("다이어리를 예쁜 그림으로 변환하고 있어요... (최초 실행 시 폰트 다운로드로 10~20초 소요될 수 있습니다) 🧸"):
                 try:
+                    download_fonts_if_needed()
                     cal_img_buf = draw_calendar_image(st.session_state.calendar_data, colors)
                     
                     # 다운로드 버튼 활성화
@@ -984,5 +1018,6 @@ with tab_export:
                     st.error("올바른 다이어리 백업 파일 양식이 아닙니다.")
             except Exception as e:
                 st.error(f"파일을 읽는 도중 오류가 발생했습니다: {e}")
+
 
 
